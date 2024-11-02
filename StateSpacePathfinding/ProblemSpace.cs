@@ -1,6 +1,9 @@
-﻿using System.Diagnostics;
+﻿using System.Collections;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace StateSpacePathfinding;
@@ -14,7 +17,7 @@ public class ProblemSpace
     private readonly CostFunction costFunction;
     private readonly Heuristic heuristic;
     private readonly Vector[] controlSearchPattern;
-    private const double gridSize = 0.05;
+    private const double gridSize = 0.075;
 
     public ProblemSpace(
         int stateSpaceDims, int controlSpaceDims, StateDerivative stateDerivative, 
@@ -62,7 +65,7 @@ public class ProblemSpace
         }
 
         PriorityQueue<Edge, double> priorityQueue = new();
-        Dictionary<int[], Tuple<double, Edge>> grid = new();
+        HashSet<GridCoords> grid = new();
 
         Node root = new(new Vector(start), null, this, 0);
         root.GenerateEdges(dt, grid);
@@ -73,7 +76,7 @@ public class ProblemSpace
 
         int counter = 0;
 
-        while ((priorityQueue.Peek().end.state - new Vector(end)).Magnitude > 0.075 && counter < 1000)
+        while ((priorityQueue.Peek().end.state - new Vector(end)).Magnitude > 0.075 && counter < 40000)
         {
             counter++;
 
@@ -198,31 +201,22 @@ public class ProblemSpace
             this.cost = cost;
         }
 
-        public void GenerateEdges(double dt, Dictionary<int[], Tuple<double, Edge>> grid)
+        public void GenerateEdges(double dt, HashSet<GridCoords> grid)
         {
             foreach (Vector u in enclosing.controlSearchPattern)
             {
-                if (grid.TryGetValue(ToGridCoords(u), out Tuple<double, Edge> best))
+                Edge newEdge = new Edge(this, u, enclosing, dt);
+                if (!grid.Contains(new(newEdge.end.state)))
                 {
-                    Edge possibleEdge = new Edge(this, u, enclosing, dt);
-                    if (possibleEdge.cost < best.Item1)
-                    {
-                        best.Item2.start.edges.Remove(best.Item2);
-                        grid[ToGridCoords(u)] = new(possibleEdge.cost, possibleEdge);
-                        edges.Add(possibleEdge);
-                    }
-                } 
-                else
-                {
-                    Edge newEdge = new Edge(this, u, enclosing, dt);
                     edges.Add(newEdge);
-                    grid[ToGridCoords(u)] = new(newEdge.cost, newEdge);
+                    grid.Add(new(newEdge.end.state));
                 }
             }
         }
 
         public void PrintAll()
         {
+            if (new Random().Next(0,20) == 0)
             Console.Write("({0}),", string.Join(", ", (double[]) state));
             foreach (Edge e in edges)
             {
@@ -255,15 +249,39 @@ public class ProblemSpace
         }
     }
 
-    private static int[] ToGridCoords(double[] decimalCoords)
+    private struct GridCoords(int[] coords)
     {
-        int[] result = new int[decimalCoords.Length];
+        private readonly int[] coords = coords;
 
-        for (int i = 0; i < decimalCoords.Length; i++)
+        public GridCoords(double[] decimalCoords): this(new int[decimalCoords.Length])
         {
-            result[i] = (int) (decimalCoords[i] / gridSize);
+            for (int i = 0; i < decimalCoords.Length; i++)
+            {
+                coords[i] = (int)(decimalCoords[i] / gridSize);
+            }
         }
 
-        return result;
+        public override int GetHashCode() =>
+            coords.Aggregate(0, (total, next) => HashCode.Combine(total, next));
+
+        public override bool Equals([NotNullWhen(false)] object? obj)
+        {
+            if (obj is GridCoords other) {
+                if (coords.Length != other.coords.Length) return false;
+
+                for (int i = 0; i < coords.Length; i++)
+                {
+                    if (coords[i] != other.coords[i]) return false;
+                }
+
+                return true;
+            } else
+            {
+                return false;
+            }
+        }
+
+        public static bool operator ==(GridCoords lhs, GridCoords rhs) { return lhs.Equals(rhs); }
+        public static bool operator !=(GridCoords lhs, GridCoords rhs) { return !lhs.Equals(rhs); }
     }
 }

@@ -6,9 +6,9 @@ internal class Program
 {
     private static void Main(string[] args)
     {
-        double[] start = [Math.PI, 0];
-        double[] end = [-Math.PI, 0];
-        double dt = 0.1;
+        double[] start = [2*Math.PI, 0];
+        double[] end = [0, 0];
+        double dt = 0.075;
         ProblemSpace problemSpace = new(2, 1, StateDerivative, CostFunction, Heuristic, searchPattern);
 
         double[][] result = problemSpace.PathBetween(start, end, dt, out double[][] statePath);
@@ -39,8 +39,8 @@ internal class Program
     private const double g = 9.8;
     private const double l = 1;
     private const double m = 9.8;
-    private const double p = 5.0;
-    private const double lookaheadTime = 0.8;
+    private const double p = 25.0;
+    private const double lookaheadTime = 0.4;
     private static readonly double[][] searchPattern =
     {
         [ 1.0],
@@ -68,10 +68,23 @@ internal class Program
 
     private static double Heuristic(double[] state, double[] target)
     {
-        return 3 * Math.Sqrt
+        double[] futureState = Add(state, StateDerivative(state, new double[1], lookaheadTime));
+        return 2 * Math.Sqrt
             (
-                Math.Pow(state[0] + lookaheadTime * state[1] - target[0], 2) +
-                Math.Pow(state[1] - target[1], 2)
+                1 * Math.Pow(futureState[0] - target[0], 2) +
+                1 * Math.Pow(futureState[1] - target[1], 2)
             );
+    }
+
+    private static double[] Add(double[] one, double[] two)
+    {
+        double[] result = new double[one.Length];
+
+        for (int i = 0; i < one.Length; i++)
+        {
+            result[i] = one[i] + two[i];
+        }
+
+        return result;
     }
 }
